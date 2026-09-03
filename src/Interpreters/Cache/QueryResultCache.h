@@ -231,6 +231,16 @@ public:
     /// for `key` in the coalescing map, removes it so that future queries don't wait on a finished execution.
     void releaseHerdToken(const CoalescingKey & key, const HerdTokenPtr & token);
 
+    /// True if the current, non-stale token for `key` (if any) is owned by `query_id` itself. Used by callers
+    /// that retry acquireOrWaitHerdToken()/tryBecomeHerdExecutor() in a loop (see executeQuery() and Planner's
+    /// subquery caching) to detect that they would otherwise spin until query_cache_herd_wait_timeout elapses
+    /// waiting for/trying to take over their own still-open in-flight execution - e.g. the same cacheable
+    /// subquery appears twice in one query, so the second occurrence keeps finding the first occurrence's token,
+    /// which cannot be released until this same query's pipeline actually runs. Retrying can never succeed in
+    /// this case, so the caller should stop and execute independently instead, exactly as it would without
+    /// coalescing.
+    bool isHerdKeyOwnedBySelf(const CoalescingKey & key, const String & query_id) const;
+
 private:
     struct KeyHasher
     {

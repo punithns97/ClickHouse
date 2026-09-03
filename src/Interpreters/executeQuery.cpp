@@ -3084,6 +3084,16 @@ static BlockIO executeQueryImpl(
                         if (served_from_query_result_cache)
                             break;
 
+                        /// The token still blocking this key is this exact query's own in-flight execution (not
+                        /// yet another concurrent query): retrying can never succeed here, it would just busy-spin
+                        /// until herd_wait_timeout for no benefit. This normally cannot happen for a top-level
+                        /// query (each top-level query is planned and executed exactly once, unlike a subquery
+                        /// which may appear more than once in the same query - see the identical check in
+                        /// Planner.cpp), but is checked defensively for the same reason acquireOrWaitHerdToken()
+                        /// itself never waits on the caller's own token.
+                        if (query_result_cache->isHerdKeyOwnedBySelf(herd_key, context->getCurrentQueryId()))
+                            break;
+
                         /// Still a miss: the previous executor may have thrown, been cancelled, timed out, or the
                         /// cache may have been cleared in the meantime. Try to take over as executor.
                         herd_token = query_result_cache->tryBecomeHerdExecutor(herd_key, context->getCurrentQueryId());

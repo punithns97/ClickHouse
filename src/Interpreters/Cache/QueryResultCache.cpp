@@ -766,6 +766,16 @@ void QueryResultCache::releaseHerdToken(const CoalescingKey & key, const HerdTok
         herd_tokens.erase(it);
 }
 
+bool QueryResultCache::isHerdKeyOwnedBySelf(const CoalescingKey & key, const String & query_id) const
+{
+    if (query_id.empty())
+        return false;
+
+    std::lock_guard lock(mutex);
+    auto it = herd_tokens.find(key);
+    return it != herd_tokens.end() && it->second->generation == clear_generation && it->second->owner_query_id == query_id;
+}
+
 QueryResultCacheWriter::QueryResultCacheWriter(
     Cache & cache_,
     const QueryResultCache::Key & key_,

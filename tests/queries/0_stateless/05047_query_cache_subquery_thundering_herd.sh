@@ -59,13 +59,28 @@ ${CLICKHOUSE_CLIENT} --query "SELECT count() FROM system.query_cache WHERE is_su
 
 ${CLICKHOUSE_CLIENT} --query "SYSTEM DROP QUERY CACHE"
 
-# A query containing the same subquery twice must not deadlock on its own herd token: the Planner takes the token while
-# planning the first occurrence and releases it only after the subquery ran, so waiting for it would block the query on
-# itself until `query_cache_herd_wait_timeout`. It returns promptly instead.
+# A query containing the same subquery twice must not deadlock/spin on its own herd token: the Planner takes the
+# token while planning the first occurrence and releases it only after the subquery ran (which cannot happen
+# until this same query's pipeline finishes being planned), so both waiting for it and repeatedly trying to take
+# it over would be pointless. It must return promptly instead of retrying until `query_cache_herd_wait_timeout`.
+# `query_cache_herd_wait_timeout` is set far higher than any sane completion time for this trivial query, so a
+# regression that makes the Planner spin until the timeout elapses (instead of detecting the self-owned token and
+# falling through immediately) is caught by the elapsed-time assertion below, not just by the query's own result.
+start_seconds=$(${CLICKHOUSE_CLIENT} --query "SELECT toUnixTimestamp(now64())")
 ${CLICKHOUSE_CLIENT} --query "
 SELECT a.x, b.x
 FROM (SELECT sum(number) AS x FROM numbers(1000)) AS a, (SELECT sum(number) AS x FROM numbers(1000)) AS b
 SETTINGS ${SETTINGS}, query_cache_herd_wait_timeout = 300
 "
+end_seconds=$(${CLICKHOUSE_CLIENT} --query "SELECT toUnixTimestamp(now64())")
+
+# Well below the 300s herd_wait_timeout configured above - only meant to catch a regression that busy-spins until
+# that timeout elapses, not to be a tight performance bound.
+elapsed_seconds=$((end_seconds - start_seconds))
+if [ "${elapsed_seconds}" -lt 60 ]; then
+    echo 1
+else
+    echo "0 (took ${elapsed_seconds}s, expected well under 60s)"
+fi
 
 ${CLICKHOUSE_CLIENT} --query "SYSTEM DROP QUERY CACHE"

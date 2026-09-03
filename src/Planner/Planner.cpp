@@ -2593,6 +2593,16 @@ void Planner::buildPlanForQueryNode()
                     }
                 }
 
+                /// The token still blocking this key is this exact query's own in-flight execution, not a
+                /// different concurrent query - this happens when the same cacheable subquery appears more than
+                /// once in one query: the first occurrence's token is held by StreamInQueryResultCacheTransform
+                /// until the pipeline actually executes it, which cannot happen while this second occurrence is
+                /// still being planned. Retrying (waiting or trying to take over) can therefore never succeed
+                /// here; without this check the loop would busy-spin one core until query_cache_herd_wait_timeout
+                /// elapses before falling through, instead of doing so immediately as it should.
+                if (query_result_cache->isHerdKeyOwnedBySelf(herd_key, query_context->getCurrentQueryId()))
+                    break;
+
                 /// Still a miss: the previous executor may have thrown, been cancelled, timed out, or the cache
                 /// may have been cleared in the meantime. Try to take over as executor.
                 herd_token = query_result_cache->tryBecomeHerdExecutor(herd_key, query_context->getCurrentQueryId());
