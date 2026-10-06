@@ -2768,6 +2768,9 @@ void Planner::buildPlanForQueryNode()
                 if (herd_wait_process_list_elem)
                     herd_wait_process_list_elem->throwIfKilled();
 
+                if (query_result_cache->isHerdExecutor(herd_key, query_context->getCurrentQueryId()))
+                    break;    
+                
                 if (settings[Setting::enable_reads_from_query_cache])
                 {
                     QueryResultCache::Key key(ast, query_context->getCurrentDatabase(), *settings_copy, query_context->getCurrentQueryId(), query_context->getUserID(), query_context->getCurrentRoles(), /* is_subquery = */ true);

@@ -214,7 +214,13 @@ public:
     /// Non-blocking counterpart of acquireOrWaitHerdToken(): tries to become the herd executor for `key`
     /// immediately. Returns a locked token on success, or nullptr if another query already owns `key`
     HerdTokenPtr tryBecomeHerdExecutor(const CoalescingKey & key, const String & query_id);
+    
+    /// Whether the current token for `key` is owned by the query with `query_id`. Callers retrying
+    /// acquireOrWaitHerdToken()/tryBecomeHerdExecutor() in a loop must stop retrying in that case: both return
+    /// nullptr until the query itself releases the token, so retrying would spin until the query times out.
+    bool isHerdExecutor(const CoalescingKey & key, const String & query_id);
 
+    
     /// Releases a token obtained from tryBecomeHerdExecutor()/acquireOrWaitHerdToken(). Must be called exactly
     /// once by whichever call became the executor. Unblocks waiters and, if the token is still the current entry
     /// for `key` in the coalescing map, removes it so that future queries don't wait on a finished execution.

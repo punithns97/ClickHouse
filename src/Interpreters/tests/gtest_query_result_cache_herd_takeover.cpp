@@ -104,8 +104,14 @@ TEST(QueryResultCacheHerdTakeover, AQueryNeverWaitsForItsOwnToken)
     EXPECT_FALSE(cache.acquireOrWaitHerdToken(key, std::chrono::milliseconds(10000), "query_1", neverCancelled()));
     EXPECT_LT(std::chrono::steady_clock::now() - before, std::chrono::seconds(5));
 
+    /// Retrying can never succeed while the query owns the token, so retry loops must detect this and stop.
+    EXPECT_FALSE(cache.tryBecomeHerdExecutor(key, "query_1"));
+    EXPECT_TRUE(cache.isHerdExecutor(key, "query_1"));
+    EXPECT_FALSE(cache.isHerdExecutor(key, "query_2"));
+
     /// Another query is still a regular waiter and does not steal the key.
     EXPECT_FALSE(cache.tryBecomeHerdExecutor(key, "query_2"));
 
     cache.releaseHerdToken(key, own_token);
+    EXPECT_FALSE(cache.isHerdExecutor(key, "query_1"));
 }

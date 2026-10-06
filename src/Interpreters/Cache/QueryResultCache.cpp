@@ -684,6 +684,16 @@ QueryResultCache::HerdTokenPtr QueryResultCache::tryBecomeHerdExecutor(const Coa
     return tryBecomeHerdExecutorImpl(key, query_id);
 }
 
+bool QueryResultCache::isHerdExecutor(const CoalescingKey & key, const String & query_id)
+{
+    if (query_id.empty())
+        return false;
+
+    std::lock_guard lock(mutex);
+    auto it = herd_tokens.find(key);
+    return it != herd_tokens.end() && it->second->generation == clear_generation && it->second->owner_query_id == query_id;
+}
+
 QueryResultCache::HerdTokenPtr QueryResultCache::acquireOrWaitHerdToken(
     const CoalescingKey & key,
     std::chrono::milliseconds timeout,
