@@ -170,7 +170,7 @@ public:
         size_t operator()(const CoalescingKey & key) const;
     };
 
-    /// One in-flight query result computation. The query which creates the token ("executor") holds `mutex` 
+    /// One in-flight query result computation. The query which creates the token ("executor") holds `mutex`
     /// locked until it is done (successfully or not); concurrent identical queries (the "waiters") block on it.
     struct HerdToken
     {
@@ -180,7 +180,7 @@ public:
         }
 
         std::timed_mutex mutex;
-        
+
         /// Set when a waiter times out and removes this token. Lets other waiters bail out immediately.
         /// instead of waiting for their own timeout to elapse.
         std::atomic<bool> abandoned{false};
@@ -220,7 +220,6 @@ public:
     /// nullptr until the query itself releases the token, so retrying would spin until the query times out.
     bool isHerdExecutor(const CoalescingKey & key, const String & query_id);
 
-    
     /// Releases a token obtained from tryBecomeHerdExecutor()/acquireOrWaitHerdToken(). Must be called exactly
     /// once by whichever call became the executor. Unblocks waiters and, if the token is still the current entry
     /// for `key` in the coalescing map, removes it so that future queries don't wait on a finished execution.
